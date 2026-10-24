@@ -30,6 +30,8 @@ printf '%s\n' "$GAME_REL" > "$APP/Contents/Resources/game-rel.txt"
 
 cp "$ROOT/packaging/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/packaging/Sacked" "$APP/Contents/MacOS/Sacked"
+cp "$ROOT/tools/sacked-hotkeys.exe" "$APP/Contents/Resources/sacked-hotkeys.exe"
+cp "$ROOT/tools/sacked-menu.dll" "$APP/Contents/Resources/sacked-menu.dll"
 cp "$ROOT/packaging/THIRD_PARTY_NOTICES.txt" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.txt"
 cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE.txt"
 cp "$ROOT/third_party/cnc-ddraw/LICENSE" "$APP/Contents/Resources/LICENSE.cnc-ddraw.txt"

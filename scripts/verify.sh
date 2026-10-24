@@ -15,6 +15,8 @@ REQUIRED=(
     "Contents/Resources/LICENSE.txt"
     "Contents/Resources/LICENSE.cnc-ddraw.txt"
     "Contents/Resources/force-gdi.sh"
+    "Contents/Resources/sacked-hotkeys.exe"
+    "Contents/Resources/sacked-menu.dll"
     "Contents/Resources/prefix.tar.xz"
     "Contents/Resources/wine/bin/wine"
 )

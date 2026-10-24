@@ -144,6 +144,16 @@ apply_language() {
 FORCE_GDI="$RES/force-gdi.sh"
 WINDOW_MODE_FILE="$GAME_DIR/window-mode"
 
+sync_runtime_helper() {
+    for name in sacked-hotkeys.exe sacked-menu.dll; do
+        if [ -f "$RES/$name" ]; then
+            if ! cp "$RES/$name" "$GAME_DIR/$name" >>"$LOG" 2>&1; then
+                printf 'warning: could not update %s\n' "$name" >>"$LOG"
+            fi
+        fi
+    done
+}
+
 configure_window_mode() {
     SACKED_WINDOW_WIDTH=0
     SACKED_WINDOW_HEIGHT=0
@@ -174,6 +184,7 @@ force_gdi() {
 
 while :; do
     configure_window_mode
+    sync_runtime_helper
     apply_language
     force_gdi
     rm -f "$GAME_DIR/restart"
