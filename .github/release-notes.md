@@ -4,7 +4,7 @@ A free one-click macOS release of the original Windows game, running through Win
 
 ## Download
 
-Download `Sacked-1.0.0-arm64.zip`, unzip it, and move `Sacked.app` to Applications.
+Download the `Sacked-*-arm64.zip` asset below, unzip it, and move `Sacked.app` to Applications.
 
 This build is ad-hoc signed, not notarized. On first launch, right-click the app and choose **Open**. You need **Rosetta 2** on Apple Silicon.
 

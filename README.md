@@ -1,8 +1,7 @@
 # Sacked! Your Last Day — macOS app
 
 A free one-click macOS app that runs the original 2003 Windows game **Sacked!
-Your Last Day** through Wine. This is not the native `sacked-port`
-reimplementation.
+Your Last Day** through Wine.
 
 **Download the latest release:**
 https://github.com/nairdam88/sacked-macos/releases/latest
