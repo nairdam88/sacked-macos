@@ -14,6 +14,7 @@
 #define HOTKEY_OSD 3
 #define HOTKEY_MENU 4
 
+#define WM_RELOCK_CURSOR (WM_APP + 111)
 #define WM_TOGGLE_FULLSCREEN (WM_APP + 117)
 #define WM_MENU_REQUEST (WM_APP + 118)
 #define WM_SACKED_MENU (WM_APP + 120)
@@ -24,7 +25,7 @@
 #define OSD_TIMER 1
 #define OSD_TIMEOUT_SECONDS 10
 #define OSD_WIDTH 220
-#define OSD_HEIGHT 184
+#define OSD_HEIGHT 222
 #define OSD_ALPHA 238
 
 static char g_log_path[MAX_PATH];
@@ -39,9 +40,13 @@ static DWORD g_last_escape;
 static DWORD g_last_main_menu;
 static DWORD g_game_pid;
 static int g_language_hu;
+static int g_large_window;
 static int g_hide_seconds = OSD_TIMEOUT_SECONDS;
 static char g_status[128];
 static int g_hover;
+static DWORD g_relock_at;
+static int g_relock_left;
+static int g_was_fullscreen;
 
 #define OSD_MARGIN 12
 #define OSD_BUTTON_W 196
@@ -49,17 +54,26 @@ static int g_hover;
 static const RECT g_button_full = {
     OSD_MARGIN, 54, OSD_MARGIN + OSD_BUTTON_W, 54 + OSD_BUTTON_H
 };
-static const RECT g_button_language = {
+static const RECT g_button_large = {
     OSD_MARGIN, 92, OSD_MARGIN + OSD_BUTTON_W, 92 + OSD_BUTTON_H
 };
-static const RECT g_button_quit = {
+static const RECT g_button_language = {
     OSD_MARGIN, 130, OSD_MARGIN + OSD_BUTTON_W, 130 + OSD_BUTTON_H
+};
+static const RECT g_button_quit = {
+    OSD_MARGIN, 168, OSD_MARGIN + OSD_BUTTON_W, 168 + OSD_BUTTON_H
 };
 
 static void hide_osd(void);
 static void show_osd(void);
 static void request_main_menu(void);
+static void read_window_mode(void);
+static void write_window_mode(void);
+static void write_restart_file(void);
 static void toggle_fullscreen(HWND game);
+static void schedule_cursor_relock(void);
+static void run_cursor_relock(void);
+static void log_window_state(const char *tag);
 static void quit_game(HWND game, DWORD pid);
 static void write_language_files(void);
 static LRESULT CALLBACK low_level_keyboard_proc(int code, WPARAM wparam,
@@ -236,6 +250,41 @@ static void read_language(void)
     g_language_hu = strstr(buf, "hu") != NULL || strstr(buf, "HU") != NULL;
 }
 
+static void read_window_mode(void)
+{
+    char buf[32] = { 0 };
+    DWORD read = 0;
+    HANDLE file = CreateFileA("window-mode", GENERIC_READ,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        ReadFile(file, buf, sizeof(buf) - 1, &read, NULL);
+        CloseHandle(file);
+    }
+
+    g_large_window = strstr(buf, "large") != NULL;
+    log_msg("window mode: %s", g_large_window ? "1200x900" : "800x600");
+}
+
+static void write_window_mode(void)
+{
+    DWORD written;
+    HANDLE file = CreateFileA("window-mode", GENERIC_WRITE, FILE_SHARE_READ,
+                              NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        const char *text = g_large_window ? "large\n" : "normal\n";
+        WriteFile(file, text, (DWORD)strlen(text), &written, NULL);
+        CloseHandle(file);
+    }
+
+    write_restart_file();
+    log_msg("window mode set to %s", g_large_window ? "large" : "normal");
+}
+
 static void write_restart_file(void)
 {
     DWORD written;
@@ -331,6 +380,95 @@ static void toggle_fullscreen(HWND game)
 
     log_msg("toggle fullscreen");
     PostMessageA(game, WM_TOGGLE_FULLSCREEN, 0, 0);
+    schedule_cursor_relock();
+}
+
+static void schedule_cursor_relock(void)
+{
+    g_relock_at = GetTickCount() + 700;
+    g_relock_left = 2;
+    log_msg("scheduled cursor relock");
+}
+
+static void log_window_state(const char *tag)
+{
+    RECT window_rect = { 0 };
+    RECT client_rect = { 0 };
+    RECT clip_rect = { 0 };
+    POINT cursor = { 0 };
+    HWND foreground = GetForegroundWindow();
+    BOOL have_clip = FALSE;
+
+    if (g_game && IsWindow(g_game))
+    {
+        GetWindowRect(g_game, &window_rect);
+        GetClientRect(g_game, &client_rect);
+    }
+    GetCursorPos(&cursor);
+    have_clip = GetClipCursor(&clip_rect);
+
+    log_msg(
+        "%s: window=%ld,%ld %ldx%ld client=%ldx%ld clip=%s %ld,%ld %ldx%ld "
+        "cursor=%ld,%ld foreground=%p game=%p",
+        tag,
+        (long)window_rect.left, (long)window_rect.top,
+        (long)(window_rect.right - window_rect.left),
+        (long)(window_rect.bottom - window_rect.top),
+        (long)client_rect.right, (long)client_rect.bottom,
+        have_clip ? "yes" : "no",
+        (long)clip_rect.left, (long)clip_rect.top,
+        (long)(clip_rect.right - clip_rect.left),
+        (long)(clip_rect.bottom - clip_rect.top),
+        (long)cursor.x, (long)cursor.y,
+        (void *)foreground, (void *)g_game);
+}
+
+static int is_fullscreen_window(void)
+{
+    RECT window_rect;
+    RECT monitor_rect;
+    MONITORINFO monitor_info;
+    HMONITOR monitor;
+
+    if (!g_game || !IsWindow(g_game))
+        return 0;
+    if (!GetWindowRect(g_game, &window_rect))
+        return 0;
+
+    monitor = MonitorFromWindow(g_game, MONITOR_DEFAULTTONEAREST);
+    memset(&monitor_info, 0, sizeof(monitor_info));
+    monitor_info.cbSize = sizeof(monitor_info);
+    if (!GetMonitorInfoA(monitor, &monitor_info))
+        return 0;
+
+    monitor_rect = monitor_info.rcMonitor;
+    return window_rect.left <= monitor_rect.left + 2 &&
+           window_rect.top <= monitor_rect.top + 2 &&
+           window_rect.right >= monitor_rect.right - 2 &&
+           window_rect.bottom >= monitor_rect.bottom - 2;
+}
+
+static void run_cursor_relock(void)
+{
+    DWORD now;
+
+    if (!g_relock_left || !g_game || !IsWindow(g_game))
+        return;
+
+    now = GetTickCount();
+    if ((LONG)(now - g_relock_at) < 0)
+        return;
+    if (!is_fullscreen_window())
+    {
+        if (now - g_relock_at > 3000)
+            g_relock_left = 0;
+        return;
+    }
+
+    log_window_state("before cursor relock");
+    PostMessageA(g_game, WM_RELOCK_CURSOR, 0, 0);
+    --g_relock_left;
+    g_relock_at = GetTickCount() + 900;
 }
 
 static void quit_game(HWND game, DWORD pid)
@@ -609,10 +747,12 @@ static int hit_button(POINT point)
 {
     if (PtInRect(&g_button_full, point))
         return 1;
-    if (PtInRect(&g_button_language, point))
+    if (PtInRect(&g_button_large, point))
         return 2;
-    if (PtInRect(&g_button_quit, point))
+    if (PtInRect(&g_button_language, point))
         return 3;
+    if (PtInRect(&g_button_quit, point))
+        return 4;
     return 0;
 }
 
@@ -621,7 +761,7 @@ static void draw_osd(HWND hwnd)
     PAINTSTRUCT ps;
     HDC dc = BeginPaint(hwnd, &ps);
     RECT countdown_rect = { 144, 7, 208, 27 };
-    RECT hint_rect = { OSD_MARGIN, 166, OSD_WIDTH - OSD_MARGIN, 180 };
+    RECT hint_rect = { OSD_MARGIN, 204, OSD_WIDTH - OSD_MARGIN, 218 };
     char countdown[64];
     const char *hint = "Esc  Menu     Ctrl+Cmd+H  OSD";
     HBRUSH background = CreateSolidBrush(RGB(15, 20, 30));
@@ -703,10 +843,13 @@ static void draw_osd(HWND hwnd)
     DeleteObject(divider);
 
     draw_button(dc, &g_button_full, "Toggle Fullscreen", g_hover == 1, 0);
+    draw_button(dc, &g_button_large,
+                g_large_window ? "Window 1.5x: On" : "Window 1.5x",
+                g_hover == 2, 0);
     draw_button(dc, &g_button_language,
                 g_language_hu ? "Language: English" : "Language: Magyar",
-                g_hover == 2, 0);
-    draw_button(dc, &g_button_quit, "Quit", g_hover == 3, 1);
+                g_hover == 3, 0);
+    draw_button(dc, &g_button_quit, "Quit", g_hover == 4, 1);
 
     old_font = SelectObject(dc, hint_font);
     SetTextColor(dc, RGB(148, 163, 184));
@@ -887,6 +1030,16 @@ static LRESULT CALLBACK osd_window_proc(HWND hwnd, UINT message,
             }
             else if (button == 2)
             {
+                g_large_window = !g_large_window;
+                write_window_mode();
+                snprintf(g_status, sizeof(g_status), "Restarting...");
+                InvalidateRect(hwnd, NULL, FALSE);
+                show_osd();
+                if (g_game)
+                    quit_game(g_game, g_game_pid);
+            }
+            else if (button == 3)
+            {
                 g_language_hu = !g_language_hu;
                 write_language_files();
                 snprintf(g_status, sizeof(g_status), "Restarting...");
@@ -895,7 +1048,7 @@ static LRESULT CALLBACK osd_window_proc(HWND hwnd, UINT message,
                 if (g_game)
                     quit_game(g_game, g_game_pid);
             }
-            else if (button == 3)
+            else if (button == 4)
             {
                 if (g_game)
                     quit_game(g_game, g_game_pid);
@@ -1050,6 +1203,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous, LPSTR command_line, i
     }
 
     read_language();
+    read_window_mode();
     snprintf(g_status, sizeof(g_status), "In-game settings");
 
     if (!create_osd(instance))
@@ -1084,6 +1238,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous, LPSTR command_line, i
                 remove_menu_hook();
                 g_game = NULL;
                 g_game_pid = 0;
+                g_relock_left = 0;
+                g_was_fullscreen = 0;
                 lost_tick = GetTickCount();
                 hide_osd();
             }
@@ -1094,6 +1250,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous, LPSTR command_line, i
                 had_game = TRUE;
                 lost_tick = 0;
                 log_msg("game window found (pid %lu)", g_game_pid);
+                log_window_state("game window found");
                 if (!osd_started)
                 {
                     show_osd();
@@ -1116,6 +1273,18 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous, LPSTR command_line, i
         {
             position_osd();
         }
+
+        {
+            int fullscreen = is_fullscreen_window();
+            if (fullscreen && !g_was_fullscreen)
+            {
+                log_msg("fullscreen detected");
+                schedule_cursor_relock();
+            }
+            g_was_fullscreen = fullscreen;
+        }
+
+        run_cursor_relock();
 
         {
             static int escape_down;

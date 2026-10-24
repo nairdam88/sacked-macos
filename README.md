@@ -48,10 +48,12 @@ Saves and settings stay there, outside the app bundle.
 - **Safe Esc/main-menu transition** through a 32-bit game-thread DLL hook.
   The helper no longer suspends the game or calls game UI code from a remote
   thread.
-- **Compact vertical OSD** with Fullscreen, Language, and Quit rows.
+- **Compact vertical OSD** with Fullscreen, Window 1.5x, Language, and Quit rows.
+- **Optional 1200x900 window** (1.5x the default 800x600, same 4:3 aspect).
 - **Fullscreen/quit/OSD hotkeys** that work even when Alt+Enter does not.
+- **Fullscreen cursor relock** to avoid the initial mouse-clipping glitch.
 - **English/Hungarian switching** from the OSD, with automatic restart.
-- **Original 4:3 presentation** at 800x600.
+- **Original 4:3 presentation** at 800x600 or 1200x900.
 - **Saves live outside the signed app**, so rebuilding or updating the app does
   not erase progress.
 
@@ -217,5 +219,7 @@ Game assets and trademarks remain the property of their respective owners.
 - The app is ad-hoc signed, not notarized.
 - Apple Silicon and Rosetta 2 are required.
 - The original game renders at 800x600 4:3; there is no true widescreen mode.
+- The optional 1200x900 window uses 1.5x non-integer scaling, so it is not
+  pixel-perfect.
 - The OSD cannot reliably appear over exclusive-fullscreen DirectDraw; use
   windowed or borderless mode.

@@ -13,7 +13,9 @@ This build is ad-hoc signed, not notarized. On first launch, right-click the app
 - Original Sacked! game and English/Hungarian overlays
 - Bundled Wine 11.18 runtime
 - GDI-only cnc-ddraw rendering
-- Compact OSD with Fullscreen, Language, and Quit controls
+- Compact OSD with Fullscreen, Window 1.5x, Language, and Quit controls
+- Optional 1200x900 window (1.5x the default 800x600)
+- Fullscreen cursor relock to fix initial mouse clipping
 - Esc returns to the main menu through a safe game-thread DLL hook
 - Save data stored outside the app bundle
 

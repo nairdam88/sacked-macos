@@ -142,6 +142,21 @@ apply_language() {
 }
 
 FORCE_GDI="$RES/force-gdi.sh"
+WINDOW_MODE_FILE="$GAME_DIR/window-mode"
+
+configure_window_mode() {
+    SACKED_WINDOW_WIDTH=0
+    SACKED_WINDOW_HEIGHT=0
+    if [ -f "$WINDOW_MODE_FILE" ]; then
+        WINDOW_MODE="$(tr -d '\r\n' < "$WINDOW_MODE_FILE" 2>/dev/null || true)"
+        if [ "$WINDOW_MODE" = "large" ]; then
+            SACKED_WINDOW_WIDTH=1200
+            SACKED_WINDOW_HEIGHT=900
+        fi
+    fi
+    export SACKED_WINDOW_WIDTH SACKED_WINDOW_HEIGHT
+    printf 'window mode: %sx%s\n' "$SACKED_WINDOW_WIDTH" "$SACKED_WINDOW_HEIGHT" >>"$LOG"
+}
 
 force_gdi() {
     rm -f "$GAME_DIR/scaler"
@@ -158,6 +173,7 @@ force_gdi() {
 }
 
 while :; do
+    configure_window_mode
     apply_language
     force_gdi
     rm -f "$GAME_DIR/restart"
