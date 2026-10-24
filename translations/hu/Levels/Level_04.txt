@@ -1,0 +1,6 @@
+Ez az iroda mindig is kicsi vol neked. Itt az idõ a nagy bûnokre!
+
+%s
+
+
+Tutdad, hogy törölni lehet egy parancsot amíg az akció menübe vagy? De ha egyszer elkezted nem lehet törölni. 

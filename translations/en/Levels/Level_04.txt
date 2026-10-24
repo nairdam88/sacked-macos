@@ -1,0 +1,6 @@
+This office has always been too small for you. It's time for big deeds now!
+
+%s
+
+
+Did you know that you can delete actions as long as you see the action menu? Once started, they cannot be deleted anymore. 

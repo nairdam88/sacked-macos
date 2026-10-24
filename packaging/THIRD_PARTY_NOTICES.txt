@@ -1,0 +1,28 @@
+Sacked Wine wrapper
+
+This app bundles Wine, an open-source implementation of the Windows API.
+Wine is free software distributed under the GNU Lesser General Public
+License, version 2.1 or later. Source code and license information are
+available at https://www.winehq.org/ and
+https://github.com/wine-mirror/wine.
+
+The macOS Wine build is provided by Gcenx:
+https://github.com/Gcenx/macOS_Wine_builds
+
+This app also bundles cnc-ddraw, a DirectDraw compatibility layer, under the
+MIT License. Copyright (c) 2025 github.com/FunkyFr3sh.
+https://github.com/FunkyFr3sh/cnc-ddraw
+
+Sacked! Your Last Day was created by Limbic Entertainment GmbH. The game
+installer is distributed through the Internet Archive item sacked_202610:
+https://archive.org/details/sacked_202610
+
+The Hungarian translation overlay was extracted from the fan-made Hun Patch
+v1.0 by Wicktor89, published on Magyarítások Portál:
+https://magyaritasok.hu/download/357/sacked
+The translation is used under CC BY-NC-ND 4.0 and is included unmodified.
+
+The wrapper and helper source code are licensed under the MIT License.
+See LICENSE.txt in this app or the repository.
+
+Game assets and trademarks remain the property of their respective owners.

@@ -1,0 +1,9 @@
+build/
+dist/
+installer/
+game/
+Sacked.EXE
+Sacked.exe
+*.log
+.DS_Store
+/sackedhun.exe

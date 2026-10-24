@@ -1,0 +1,196 @@
+#!/bin/bash
+set -u
+
+PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+export PATH
+
+RES="$(cd "$(dirname "$0")/../Resources" 2>/dev/null && pwd)"
+LOG_DIR="$HOME/Library/Logs"
+LOG="$LOG_DIR/Sacked.log"
+SUPPORT="$HOME/Library/Application Support/Sacked"
+PREFIX="$SUPPORT/prefix"
+SEED="$RES/prefix.tar.xz"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+
+alert() {
+    /usr/bin/osascript -e "display alert \"Sacked\" message \"$1\" as warning" >/dev/null 2>&1 || true
+}
+
+if [ -z "${RES:-}" ]; then
+    exit 1
+fi
+
+WINE="$RES/wine/bin/wine"
+GAME_FILE="$RES/game-path.txt"
+GAME_REL_FILE="$RES/game-rel.txt"
+
+if [ "${1:-}" = "--check" ]; then
+    if [ ! -x "$WINE" ]; then
+        echo "missing wine runtime" >&2
+        exit 1
+    fi
+    if [ ! -f "$SEED" ]; then
+        echo "missing prefix archive" >&2
+        exit 1
+    fi
+    if [ ! -f "$GAME_REL_FILE" ]; then
+        echo "missing game relative path" >&2
+        exit 1
+    fi
+    echo "wine: $("$WINE" --version 2>&1)"
+    echo "seed: $SEED"
+    echo "support: $SUPPORT"
+    echo "installed: $([ -f "$PREFIX/system.reg" ] && echo yes || echo no)"
+    echo "game: $(cat "$GAME_FILE" 2>/dev/null || true)"
+    echo "relative: $(cat "$GAME_REL_FILE" 2>/dev/null || true)"
+    exit 0
+fi
+
+if [ ! -x "$WINE" ]; then
+    alert "The Wine runtime is missing from the app bundle."
+    exit 1
+fi
+
+if [ ! -f "$GAME_FILE" ] || [ ! -f "$GAME_REL_FILE" ]; then
+    alert "The game path is missing from the app bundle."
+    exit 1
+fi
+
+if ! mkdir -p "$SUPPORT" 2>/dev/null || [ ! -w "$SUPPORT" ]; then
+    alert "Could not write to ~/Library/Application Support/Sacked."
+    exit 1
+fi
+
+if [ ! -f "$PREFIX/system.reg" ]; then
+    if [ ! -f "$SEED" ]; then
+        alert "The game data archive is missing from the app bundle."
+        exit 1
+    fi
+    /usr/bin/osascript -e 'display notification "Preparing game data..." with title "Sacked"' >/dev/null 2>&1 || true
+    printf '\n[%s] Extracting %s to %s\n' "$(date)" "$SEED" "$SUPPORT" >>"$LOG"
+    if ! /usr/bin/tar -xJf "$SEED" -C "$SUPPORT" >>"$LOG" 2>&1; then
+        alert "Could not prepare the game data. See ~/Library/Logs/Sacked.log."
+        exit 1
+    fi
+fi
+
+if [ ! -f "$PREFIX/system.reg" ]; then
+    alert "The game data is incomplete. See ~/Library/Logs/Sacked.log."
+    exit 1
+fi
+
+GAME_WIN="$(tr -d '\r' < "$GAME_FILE")"
+GAME_REL="$(tr -d '\r' < "$GAME_REL_FILE")"
+GAME_UNIX="$PREFIX/$GAME_REL"
+GAME_DIR="$(dirname "$GAME_UNIX")"
+
+if [ -z "$GAME_WIN" ] || [ -z "$GAME_REL" ]; then
+    alert "The game path is empty."
+    exit 1
+fi
+
+if [ ! -f "$GAME_UNIX" ]; then
+    alert "The game executable is missing. Delete ~/Library/Application Support/Sacked and relaunch."
+    exit 1
+fi
+
+if [ ! -f "$GAME_DIR/ddraw.dll" ]; then
+    alert "The DirectDraw compatibility layer is missing. Delete ~/Library/Application Support/Sacked and relaunch."
+    exit 1
+fi
+
+if [ ! -f "$GAME_DIR/sacked-hotkeys.exe" ]; then
+    printf 'warning: sacked-hotkeys.exe is missing\n' >>"$LOG"
+fi
+
+export WINEPREFIX="$PREFIX"
+export WINEDEBUG="${SACKED_WINEDEBUG:--all}"
+export WINEDLLOVERRIDES="${SACKED_DLLOVERRIDES:-ddraw=n,b;mscoree,mshtml=}"
+export PATH="$RES/wine/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+
+cd "$GAME_DIR" || exit 1
+
+WINESERVER="$RES/wine/bin/wineserver"
+HOTKEYS_WIN="${GAME_WIN%\\*}\\sacked-hotkeys.exe"
+
+"$WINE" reg delete 'HKCU\Software\Wine\Explorer' /v Desktop /f >>"$LOG" 2>&1 || true
+
+apply_language() {
+    LANG_FILE="$GAME_DIR/language"
+    SACKED_LANG="en"
+    if [ -f "$LANG_FILE" ]; then
+        SACKED_LANG="$(tr -d '\r' < "$LANG_FILE" 2>/dev/null || true)"
+    fi
+    case "$SACKED_LANG" in
+        hu|HU|hungarian) SACKED_LANG="hu" ;;
+        *) SACKED_LANG="en" ;;
+    esac
+
+    if [ -d "$GAME_DIR/translations/$SACKED_LANG" ]; then
+        if ! cp "$GAME_DIR/translations/$SACKED_LANG/sacked.exe" "$GAME_DIR/sacked.exe" >>"$LOG" 2>&1; then
+            printf 'warning: could not apply %s executable\n' "$SACKED_LANG" >>"$LOG"
+        fi
+        if [ -d "$GAME_DIR/translations/$SACKED_LANG/Levels" ]; then
+            if ! cp "$GAME_DIR/translations/$SACKED_LANG/Levels"/*.txt "$GAME_DIR/Levels/" >>"$LOG" 2>&1; then
+                printf 'warning: could not apply %s level text\n' "$SACKED_LANG" >>"$LOG"
+            fi
+        fi
+        printf 'language: %s\n' "$SACKED_LANG" >>"$LOG"
+    else
+        printf 'warning: translation overlay missing for %s\n' "$SACKED_LANG" >>"$LOG"
+    fi
+}
+
+FORCE_GDI="$RES/force-gdi.sh"
+
+force_gdi() {
+    rm -f "$GAME_DIR/scaler"
+    if [ ! -f "$GAME_DIR/ddraw.ini" ]; then
+        return
+    fi
+    if [ ! -x "$FORCE_GDI" ]; then
+        printf 'warning: force-gdi.sh is missing\n' >>"$LOG"
+        return
+    fi
+    if ! "$FORCE_GDI" "$GAME_DIR/ddraw.ini" >>"$LOG" 2>&1; then
+        printf 'warning: could not force the GDI renderer\n' >>"$LOG"
+    fi
+}
+
+while :; do
+    apply_language
+    force_gdi
+    rm -f "$GAME_DIR/restart"
+
+    HOTKEYS_PID=""
+    if [ -f "$GAME_DIR/sacked-hotkeys.exe" ]; then
+        "$WINE" "$HOTKEYS_WIN" >>"$LOG" 2>&1 &
+        HOTKEYS_PID=$!
+    fi
+
+    printf '\n[%s] Launching %s\n' "$(date)" "$GAME_WIN" >>"$LOG"
+    "$WINE" "$GAME_WIN" >>"$LOG" 2>&1
+    STATUS=$?
+
+    if [ -n "$HOTKEYS_PID" ]; then
+        kill "$HOTKEYS_PID" 2>/dev/null || true
+        wait "$HOTKEYS_PID" 2>/dev/null || true
+    fi
+
+    if [ -f "$GAME_DIR/restart" ]; then
+        rm -f "$GAME_DIR/restart"
+        printf '[%s] Restart requested; reopening the game at the main menu\n' "$(date)" >>"$LOG"
+        sleep 1
+        continue
+    fi
+
+    if [ "$STATUS" -ne 0 ]; then
+        alert "The game exited with an error ($STATUS). See ~/Library/Logs/Sacked.log."
+    fi
+
+    if [ -x "$WINESERVER" ]; then
+        "$WINESERVER" -k >>"$LOG" 2>&1 || true
+    fi
+
+    exit "$STATUS"
+done

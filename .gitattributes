@@ -1,0 +1,15 @@
+* text=auto
+*.command text eol=lf
+*.sh text eol=lf
+*.c text eol=lf
+*.S text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.exe binary
+*.dll binary
+*.icns binary
+*.png binary
+*.ico binary
+*.tar.xz binary
+*.txt -text

@@ -1,0 +1,52 @@
+name: Release macOS app
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Ensure Rosetta 2
+        run: |
+          if ! /usr/bin/arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          /usr/bin/arch -x86_64 /usr/bin/true
+
+      - name: Build app
+        env:
+          SACKED_SKIP_SMOKE: '1'
+        run: ./build.command --skip-smoke
+
+      - name: Package release
+        env:
+          SACKED_VERSION: ${{ inputs.tag || github.ref_name }}
+        run: |
+          VERSION="${SACKED_VERSION#v}"
+          SACKED_VERSION="$VERSION" ./scripts/package-release.sh
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: Sacked for macOS ${{ inputs.tag || github.ref_name }}
+          body_path: .github/release-notes.md
+          files: |
+            dist/Sacked-*-arm64.zip
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true
