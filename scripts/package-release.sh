@@ -10,6 +10,6 @@ ZIP="$DIST/Sacked-${VERSION}-arm64.zip"
 
 rm -f "$ZIP" "$DIST/SHA256SUMS.txt"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
-shasum -a 256 "$ZIP" > "$DIST/SHA256SUMS.txt"
+(cd "$DIST" && shasum -a 256 "$(basename "$ZIP")" > SHA256SUMS.txt)
 printf 'release asset: %s\n' "$ZIP"
 cat "$DIST/SHA256SUMS.txt"
