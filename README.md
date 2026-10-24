@@ -99,13 +99,14 @@ chmod +x build.command scripts/*.sh
 ./build.command
 ```
 
-The build downloads both inputs automatically and verifies them:
+The build downloads the game installer automatically and verifies it:
 
 - Game installer from the Internet Archive item `sacked_202610`
-- Hungarian translation patch from Magyarítások Portál
 
-The extracted English/Hungarian overlays are included in the repository, so a
-normal build does not need to run the old translation installer.
+It also tries to download the original Hungarian patch for provenance. The
+Magyarítások Portál download can reject automated CI requests, so that check is
+optional. The extracted English/Hungarian overlays are included in the
+repository and are what the build actually installs.
 
 You can use a local installer instead:
 

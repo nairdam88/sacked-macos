@@ -29,10 +29,14 @@ download_verified() {
 
     rm -f "$partial"
     log "Downloading $label..."
-    curl --fail --location --retry 3 --retry-delay 2 --output "$partial" "$url"
+    if ! curl --fail --location --retry 3 --retry-delay 2 --output "$partial" "$url"; then
+        rm -f "$partial"
+        return 1
+    fi
     if ! file_ok "$partial" "$hash" "$size"; then
         rm -f "$partial"
-        die "$label checksum or size mismatch."
+        warn "$label checksum or size mismatch."
+        return 1
     fi
     mv "$partial" "$output"
     log "Verified $label: $output"
@@ -53,7 +57,7 @@ fi
 if [[ -n "$GAME_LOCAL" ]] && file_ok "$GAME_LOCAL" "$SACKED_SHA256" "$SACKED_SIZE"; then
     log "Using local game installer: $GAME_LOCAL"
 else
-    download_verified "Sacked.EXE" "$SACKED_URL" "$BUILD/downloads/Sacked.EXE" "$SACKED_SHA256" "$SACKED_SIZE"
+    download_verified "Sacked.EXE" "$SACKED_URL" "$BUILD/downloads/Sacked.EXE" "$SACKED_SHA256" "$SACKED_SIZE" || die "Could not download the game installer."
 fi
 
 TRANSLATION_LOCAL=""
@@ -67,5 +71,14 @@ done
 if [[ -n "$TRANSLATION_LOCAL" ]] && file_ok "$TRANSLATION_LOCAL" "$TRANSLATION_SHA256" "$TRANSLATION_SIZE"; then
     log "Using local translation patch: $TRANSLATION_LOCAL"
 else
-    download_verified "translation patch" "$TRANSLATION_URL" "$BUILD/downloads/sackedhun.exe" "$TRANSLATION_SHA256" "$TRANSLATION_SIZE"
+    translation_ok=0
+    for url in "$TRANSLATION_URL" "$TRANSLATION_PAGE_URL"; do
+        if download_verified "translation patch" "$url" "$BUILD/downloads/sackedhun.exe" "$TRANSLATION_SHA256" "$TRANSLATION_SIZE"; then
+            translation_ok=1
+            break
+        fi
+    done
+    if [[ "$translation_ok" != "1" ]]; then
+        warn "Translation patch download is unavailable; using the checked-in overlays."
+    fi
 fi

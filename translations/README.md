@@ -3,9 +3,11 @@
 Extracted overlays used by the launcher. The original Hungarian patch
 installer (`sackedhun.exe`) is not required at runtime.
 
-The build downloads the patch and verifies its SHA-256 for provenance. The
-extracted files are committed so the game can switch languages without a
-second full game copy and without running an old Windows installer.
+The build optionally downloads the patch and verifies its SHA-256 for
+provenance. The extracted files are committed so the game can switch languages
+without a second full game copy and without running an old Windows installer.
+The patch download is not a build requirement because the source site can
+reject automated CI requests.
 
 ## Hungarian
 
@@ -14,8 +16,8 @@ second full game copy and without running an old Windows installer.
 - Page: https://magyaritasok.hu/download/357/sacked
 - License: CC BY-NC-ND 4.0
 - Contents: translated `sacked.exe` and translated `Levels/*.txt` files.
-- The patch installer itself is not redistributed here; the build downloads
-  and checksum-verifies it.
+- The patch installer itself is not redistributed here; the build may download
+  and checksum-verify it, but the committed overlays are authoritative.
 - No OGG/OGD assets or fonts were changed by the patch.
 
 `en/` contains the matching original executable and level text files so the
